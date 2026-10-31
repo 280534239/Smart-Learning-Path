@@ -1,0 +1,27 @@
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 后端
+backend/.venv/
+backend/.python/
+backend/.tools/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/*.db
+backend/*.db-shm
+backend/*.db-wal
+
+# 环境变量与编辑器文件
+.env
+backend/.env
+frontend/.env.local
+.idea/
+.vscode/
+*.log
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
