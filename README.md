@@ -17,6 +17,7 @@
 - 知识点练习、自动批改和答题记录
 - 错题本、复习标记与分页查看
 - 每个学习内容独立绑定看板、练习、错题、路径和答疑数据
+- 支持删除 AI 生成的学习内容，并级联清理对应题库、学习记录和对话数据
 - ChromaDB RAG 检索与 DeepSeek AI 答疑
 - 全站可拖拽桌面宠物式 AI 小助手，基于独立模型流式即时回答
 - 悬浮助手历史会话按当前学习内容隔离保存
@@ -165,6 +166,7 @@ AI_ASSISTANT_MODEL_NAME=deepseek-chat
 | 注册 / 登录 | `POST /api/auth/register`、`POST /api/auth/login` |
 | 当前用户 | `GET /api/auth/profile` |
 | 知识图谱 | `GET /api/knowledge/graph/{subject}` |
+| 删除学习内容 | `DELETE /api/knowledge/subjects/{subject}` |
 | 掌握度看板 | `GET /api/dashboard/progress/{user_id}` |
 | 推荐分析 | `POST /api/recommend/analyze` |
 | 练习题 / 提交 | `GET /api/practice/questions/{kp_id}`、`POST /api/practice/submit` |
