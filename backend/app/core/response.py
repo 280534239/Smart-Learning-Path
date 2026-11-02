@@ -10,6 +10,6 @@ DataT = TypeVar("DataT")
 class ApiResponse(BaseModel, Generic[DataT]):
     """所有业务接口使用的统一响应结构。"""
 
-    code: int = Field(default=0, description="0 表示成功，非零表示失败")
-    message: str = Field(default="请求成功", description="面向调用方的结果说明")
+    code: int = Field(default=200, description="200 表示成功，非 200 表示失败")
+    message: str = Field(default="success", description="面向调用方的结果说明")
     data: DataT | None = Field(default=None, description="业务数据")

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.core.config import get_settings
 from app.core.response import ApiResponse
 
-router = APIRouter(tags=["系统"])
+router = APIRouter()
 settings = get_settings()
 
 
@@ -30,7 +30,7 @@ async def health_check(response: Response) -> ApiResponse[HealthData]:
     """返回后端服务运行状态。"""
     response.headers["Cache-Control"] = "no-store"
     return ApiResponse[HealthData](
-        code=0,
+        code=200,
         message="服务运行正常",
         data=HealthData(
             status="ok",

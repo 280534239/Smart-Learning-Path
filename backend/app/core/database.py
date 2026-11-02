@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 
+from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -13,10 +14,14 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
-engine = create_async_engine(
-    settings.database_url,
+engine: AsyncEngine = create_async_engine(
+    settings.async_database_url,
     echo=settings.debug,
     pool_pre_ping=True,
+    pool_recycle=3600,
+    pool_size=10,
+    max_overflow=20,
+    connect_args={"connect_timeout": 10},
 )
 AsyncSessionLocal = async_sessionmaker(
     bind=engine,
@@ -37,5 +42,8 @@ async def get_db() -> AsyncIterator[AsyncSession]:
 
 async def init_db() -> None:
     """创建当前已注册模型的数据库表。"""
+    from app import models  # noqa: F401
+
+    _ = models
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
