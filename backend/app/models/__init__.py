@@ -7,6 +7,7 @@ from app.models.initial_diagnosis import InitialDiagnosis
 from app.models.learning_path import LearningPath
 from app.models.learning_record import LearningRecord
 from app.models.user import User
+from app.models.user_learning_content import UserLearningContent
 
 __all__ = [
     "AttemptRecord",
@@ -16,4 +17,5 @@ __all__ = [
     "LearningPath",
     "LearningRecord",
     "User",
+    "UserLearningContent",
 ]
