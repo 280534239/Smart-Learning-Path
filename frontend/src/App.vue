@@ -8,7 +8,10 @@ import { useUserStore } from './stores/user'
 const route = useRoute()
 const userStore = useUserStore()
 const showAssistant = computed(
-  () => userStore.isAuthenticated && !route.meta.public,
+  () =>
+    userStore.isAuthenticated &&
+    !route.meta.public &&
+    route.name !== 'InitialDiagnosis',
 )
 </script>
 
