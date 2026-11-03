@@ -2,6 +2,7 @@
 
 from app.models.attempt_record import AttemptRecord
 from app.models.chat_session import ChatSession
+from app.models.diagnosis_snapshot import DiagnosisSnapshot
 from app.models.error_book import ErrorBook
 from app.models.initial_diagnosis import InitialDiagnosis
 from app.models.learning_path import LearningPath
@@ -12,6 +13,7 @@ from app.models.user_learning_content import UserLearningContent
 __all__ = [
     "AttemptRecord",
     "ChatSession",
+    "DiagnosisSnapshot",
     "ErrorBook",
     "InitialDiagnosis",
     "LearningPath",
