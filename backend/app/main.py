@@ -18,6 +18,7 @@ from app.routers.assistant import router as assistant_router
 from app.routers.auth import router as auth_router
 from app.routers.chat import router as chat_router
 from app.routers.dashboard import router as dashboard_router
+from app.routers.diagnosis import router as diagnosis_router
 from app.routers.health import router as health_router
 from app.routers.knowledge import router as knowledge_router
 from app.routers.practice import router as practice_router
@@ -119,6 +120,11 @@ app.include_router(
     tags=["悬浮 AI 小助手"],
 )
 app.include_router(dashboard_router, prefix="/api/dashboard", tags=["数据看板"])
+app.include_router(
+    diagnosis_router,
+    prefix="/api/diagnosis",
+    tags=["初始诊断"],
+)
 
 
 @app.get("/", include_in_schema=False)

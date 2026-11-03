@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     ai_assistant_api_key: str = "sk-ca66368b66794aec8bf95bb8fa316612"
     ai_assistant_base_url: str = "https://api.deepseek.com/v1"
     ai_assistant_model_name: str = "deepseek-chat"
+    ai_request_timeout_seconds: float = 2000.0
 
     @property
     def async_database_url(self) -> str:
