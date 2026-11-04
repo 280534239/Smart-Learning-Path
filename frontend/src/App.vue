@@ -11,7 +11,7 @@ const showAssistant = computed(
   () =>
     userStore.isAuthenticated &&
     !route.meta.public &&
-    !['InitialDiagnosis', 'Onboarding'].includes(route.name),
+    !['InitialDiagnosis', 'Onboarding', 'UserCenter'].includes(route.name),
 )
 </script>
 

@@ -23,6 +23,7 @@
 - 全站可拖拽桌面宠物式 AI 小助手，基于独立模型流式即时回答
 - 悬浮助手历史会话按当前学习内容隔离保存
 - 直接回答式 AI 答疑，未配置 API Key 时自动使用模拟回答
+- 用户中心：资料与头像编辑、跨学习内容统计、主题与默认内容设置、密码修改
 - 学习看板、能力雷达、学习日历与 30 天趋势图
 - 响应式 Vue 前端、亮色/暗色主题
 
@@ -169,6 +170,8 @@ AI_ASSISTANT_MODEL_NAME=deepseek-chat
 | 健康检查 | `GET /api/health` |
 | 注册 / 登录 | `POST /api/auth/register`、`POST /api/auth/login` |
 | 当前用户 | `GET /api/auth/profile` |
+| 修改资料 / 密码 / 头像 | `PATCH /api/auth/profile`、`POST /api/auth/password`、`POST /api/auth/avatar` |
+| 用户中心统计 | `GET /api/user-center/summary` |
 | 知识图谱 | `GET /api/knowledge/graph/{subject}` |
 | 删除学习内容 | `DELETE /api/knowledge/subjects/{subject}` |
 | 掌握度看板 | `GET /api/dashboard/progress/{user_id}` |
@@ -191,6 +194,9 @@ AI_ASSISTANT_MODEL_NAME=deepseek-chat
 切换顶部“学习内容”后，看板统计、推荐路径、练习记录、错题本和 AI
 答疑会同时切换到对应的数据。SQLite 版本的数据不会迁移，首次启动 MySQL
 时所有业务表均为空。
+
+用户中心头像保存在 `backend/data/media/avatars/`。生产环境需要将
+`/media` 路径与 `backend/data/` 一起持久化，并由反向代理转发到 FastAPI。
 
 ## 联调流程
 

@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncIterator
 
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import AsyncEngine
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -47,3 +48,26 @@ async def init_db() -> None:
     _ = models
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await connection.run_sync(_ensure_user_profile_columns)
+
+
+def _ensure_user_profile_columns(connection) -> None:
+    """为无迁移框架的旧数据库补齐用户资料字段。"""
+    inspector = inspect(connection)
+    if "users" not in inspector.get_table_names():
+        return
+
+    existing_columns = {
+        column["name"]
+        for column in inspector.get_columns("users")
+    }
+    additive_columns = {
+        "nickname": "VARCHAR(50) NULL",
+        "bio": "VARCHAR(280) NULL",
+    }
+    for column_name, definition in additive_columns.items():
+        if column_name in existing_columns:
+            continue
+        connection.exec_driver_sql(
+            f"ALTER TABLE users ADD COLUMN {column_name} {definition}"
+        )
