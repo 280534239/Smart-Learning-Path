@@ -35,7 +35,7 @@
 | 对话 | marked、highlight.js、DOMPurify |
 | 后端 | FastAPI、SQLAlchemy Async、MySQL 8.0、aiomysql |
 | 认证 | JWT、bcrypt |
-| AI | DeepSeek `deepseek-v4-flash`（原 AI 答疑与内容生成）、`deepseek-chat`（悬浮 AI 小助手） |
+| AI | DeepSeek `deepseek-chat`（AI 答疑与内容生成） |
 | RAG | ChromaDB、本地哈希向量嵌入 |
 
 ## 目录结构
@@ -140,8 +140,11 @@ DATABASE_URL=mysql+aiomysql://zhixue_dev:zhixue_dev_2026@127.0.0.1:3307/smart_le
 JWT_SECRET_KEY=your-secret-key-change-in-production
 AI_API_KEY=your-deepseek-api-key
 AI_BASE_URL=https://api.deepseek.com/v1
+AI_MODEL_NAME=deepseek-chat
+AI_CONNECT_TIMEOUT_SECONDS=10
+AI_REQUEST_TIMEOUT_SECONDS=75
 AI_CHAT_BASE_URL=https://api.deepseek.com/v1
-AI_CHAT_MODEL_NAME=deepseek-v4-flash
+AI_CHAT_MODEL_NAME=deepseek-chat
 AI_ASSISTANT_API_KEY=
 AI_ASSISTANT_BASE_URL=https://api.deepseek.com/v1
 AI_ASSISTANT_MODEL_NAME=deepseek-chat
@@ -152,7 +155,8 @@ AI_ASSISTANT_MODEL_NAME=deepseek-chat
 - 生产环境必须替换 `JWT_SECRET_KEY`。
 - 生产环境必须替换示例数据库账号和密码，并限制数据库只允许应用服务器访问。
 - `AI_API_KEY` 留空或保留示例占位值时，AI 答疑使用本地模拟回答。
-- AI 答疑与内容生成均使用 `deepseek-v4-flash`，内容生成不再单独配置模型。
+- AI 答疑与内容生成默认使用 `deepseek-chat`，可通过
+  `AI_MODEL_NAME` 和 `AI_CHAT_MODEL_NAME` 分别切换。
 - `AI_BASE_URL` 用于内容生成，`AI_CHAT_BASE_URL` 用于 AI 答疑，两者都复用 `AI_API_KEY`。
 - 悬浮 AI 小助手默认使用独立的 `deepseek-chat` 模型，可通过
   `AI_ASSISTANT_BASE_URL` 和 `AI_ASSISTANT_MODEL_NAME` 切换其他
