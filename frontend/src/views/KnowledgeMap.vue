@@ -1,12 +1,14 @@
 <script setup>
 import {
   ArrowRight,
+  Check,
   Close,
   RefreshRight,
   Search,
 } from '@element-plus/icons-vue'
 import * as d3 from 'd3'
 import DOMPurify from 'dompurify'
+import { ElMessage } from 'element-plus'
 import { marked } from 'marked'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -19,6 +21,7 @@ import {
 import { getLearningProgress } from '../api/dashboard'
 import { useLearningContentStore } from '../stores/learningContent'
 import { useUserStore } from '../stores/user'
+import { getUserScopedStorageKey } from '../utils/userStorage'
 
 const STATUS_META = {
   mastered: { label: '已掌握', color: '#149A76' },
@@ -26,6 +29,8 @@ const STATUS_META = {
   weak: { label: '薄弱 / 未学', color: '#D94F59' },
   locked: { label: '前置未满足', color: '#C0C4CC' },
 }
+const RESOURCE_COMPLETION_STORAGE_KEY =
+  'slp_completed_learning_resources_v1'
 
 const router = useRouter()
 const route = useRoute()
@@ -51,6 +56,7 @@ const resourceLoading = ref(false)
 const resourceError = ref('')
 const readingVisible = ref(false)
 const readingResource = ref(null)
+const completedResourceKeys = ref(new Set())
 const tooltip = ref({
   visible: false,
   x: 0,
@@ -101,6 +107,11 @@ const selectedNode = computed(
 const selectedMasteryPercent = computed(() =>
   Math.round(getMastery(selectedNodeId.value) * 100),
 )
+const completedResourceCount = computed(() =>
+  generatedResources.value.filter((resource) =>
+    isResourceCompleted(resource),
+  ).length,
+)
 
 function normalizeText(value) {
   return String(value || '').trim().toLocaleLowerCase('zh-CN')
@@ -130,6 +141,58 @@ function getNodeColor(node) {
 
 function getNodeRadius(node) {
   return 10 + Number(node.difficulty || 1) * 3.5
+}
+
+function getResourceCompletionKey(resource, pointId = selectedNodeId.value) {
+  if (!resource?.title || !pointId) return ''
+  const subject = learningContentStore.activeSubject || 'unknown'
+  return `${subject}::${pointId}::${resource.title.trim()}`
+}
+
+function loadCompletedResources() {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(
+        getUserScopedStorageKey(RESOURCE_COMPLETION_STORAGE_KEY),
+      ) || '[]',
+    )
+    completedResourceKeys.value = new Set(
+      Array.isArray(stored) ? stored : [],
+    )
+  } catch {
+    completedResourceKeys.value = new Set()
+  }
+}
+
+function saveCompletedResources() {
+  localStorage.setItem(
+    getUserScopedStorageKey(RESOURCE_COMPLETION_STORAGE_KEY),
+    JSON.stringify([...completedResourceKeys.value]),
+  )
+}
+
+function isResourceCompleted(resource) {
+  const key = getResourceCompletionKey(resource)
+  return Boolean(key) && completedResourceKeys.value.has(key)
+}
+
+function completeReadingResource() {
+  const resource = readingResource.value
+  const key = getResourceCompletionKey(
+    resource,
+    selectedDetail.value?.id || selectedNodeId.value,
+  )
+
+  if (key && !completedResourceKeys.value.has(key)) {
+    completedResourceKeys.value = new Set([
+      ...completedResourceKeys.value,
+      key,
+    ])
+    saveCompletedResources()
+    ElMessage.success('已标记为完成')
+  }
+
+  readingVisible.value = false
 }
 
 function nodeMatchesSearch(node) {
@@ -920,6 +983,7 @@ watch(
 )
 
 onMounted(async () => {
+  loadCompletedResources()
   resizeObserver = new ResizeObserver(() => updateGraphSize())
   if (graphContainer.value) {
     resizeObserver.observe(graphContainer.value)
@@ -1118,7 +1182,7 @@ onBeforeUnmount(() => {
                     {{
                       resourceLoading
                         ? '正在生成'
-                        : `${generatedResources.length} 份资源`
+                        : `已完成 ${completedResourceCount} / ${generatedResources.length}`
                     }}
                   </span>
                 </div>
@@ -1138,6 +1202,9 @@ onBeforeUnmount(() => {
                     :key="resource.title"
                     type="button"
                     class="resource-row"
+                    :class="{
+                      'is-completed': isResourceCompleted(resource),
+                    }"
                     @click="openReadingResource(resource)"
                   >
                     <span class="resource-copy">
@@ -1146,10 +1213,23 @@ onBeforeUnmount(() => {
                       </span>
                       <strong>{{ resource.title }}</strong>
                       <span class="resource-hint">
-                        详细学习内容 · 点击阅读
+                        {{
+                          isResourceCompleted(resource)
+                            ? '已完成学习 · 可再次阅读'
+                            : '详细学习内容 · 点击阅读'
+                        }}
                       </span>
                     </span>
-                    <el-icon><ArrowRight /></el-icon>
+                    <span
+                      v-if="isResourceCompleted(resource)"
+                      class="resource-complete"
+                    >
+                      <el-icon><Check /></el-icon>
+                      已完成
+                    </span>
+                    <el-icon v-else class="resource-arrow">
+                      <ArrowRight />
+                    </el-icon>
                   </button>
                 </div>
                 <p v-else class="empty-copy">暂无学习资源。</p>
@@ -1207,7 +1287,7 @@ onBeforeUnmount(() => {
         <div class="reading-actions">
           <el-button
             type="primary"
-            @click="readingVisible = false"
+            @click="completeReadingResource"
           >
             完成学习
           </el-button>
@@ -1584,6 +1664,25 @@ onBeforeUnmount(() => {
 
 .resource-row:hover {
   border-color: #246BFE;
+}
+
+.resource-row.is-completed {
+  border-color: color-mix(in srgb, #149A76 42%, var(--app-border));
+  background: color-mix(in srgb, #149A76 5%, var(--app-surface-muted));
+}
+
+.resource-complete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #149A76;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.resource-arrow {
+  color: #246BFE;
 }
 
 .resource-error {
