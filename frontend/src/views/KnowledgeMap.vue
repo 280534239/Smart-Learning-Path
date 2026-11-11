@@ -58,12 +58,12 @@ const tooltip = ref({
   node: null,
 })
 
-let simulation
 let svgSelection
 let viewportSelection
 let zoomBehavior
 let nodeSelection
 let linkSelection
+let dependencyLinkSelection
 let resizeObserver
 let graphWidth = 1000
 let graphHeight = 680
@@ -151,12 +151,121 @@ function buildNodeData(nodes) {
   }))
 }
 
-function buildLinkData(edges) {
-  return edges.map((edge) => ({
-    source: edge.from,
-    target: edge.to,
+function buildTreeData(nodes, edges) {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]))
+  const incoming = new Map(nodes.map((node) => [node.id, []]))
+  const outgoing = new Map(nodes.map((node) => [node.id, []]))
+  const visibleEdges = edges.filter(
+    (edge) => nodeById.has(edge.from) && nodeById.has(edge.to),
+  )
+
+  visibleEdges.forEach((edge) => {
+    incoming.get(edge.to).push(edge.from)
+    outgoing.get(edge.from).push(edge.to)
+  })
+
+  const parentById = new Map()
+  const visited = new Set()
+  const rootIds = nodes
+    .filter((node) => incoming.get(node.id).length === 0)
+    .map((node) => node.id)
+
+  if (!rootIds.length && nodes.length) {
+    rootIds.push(nodes[0].id)
+  }
+
+  const queue = [...rootIds]
+  rootIds.forEach((id) => visited.add(id))
+
+  while (queue.length) {
+    const parentId = queue.shift()
+    outgoing.get(parentId).forEach((childId) => {
+      if (visited.has(childId)) return
+      visited.add(childId)
+      parentById.set(childId, parentId)
+      queue.push(childId)
+    })
+  }
+
+  // Defensive fallback for malformed data: still render every visible node.
+  nodes.forEach((node) => {
+    if (!visited.has(node.id)) {
+      visited.add(node.id)
+      rootIds.push(node.id)
+    }
+  })
+
+  const childrenById = new Map(nodes.map((node) => [node.id, []]))
+  parentById.forEach((parentId, childId) => {
+    childrenById.get(parentId).push(childId)
+  })
+
+  function buildBranch(nodeId, ancestors = new Set()) {
+    if (ancestors.has(nodeId)) return null
+    const nextAncestors = new Set(ancestors).add(nodeId)
+    return {
+      node: nodeById.get(nodeId),
+      children: childrenById
+        .get(nodeId)
+        .map((childId) => buildBranch(childId, nextAncestors))
+        .filter(Boolean),
+    }
+  }
+
+  const treeRoots = rootIds
+    .map((nodeId) => buildBranch(nodeId))
+    .filter(Boolean)
+  const treeLinks = visibleEdges.map((edge) => ({
+    source: nodeById.get(edge.from),
+    target: nodeById.get(edge.to),
     relation: edge.relation,
+    isPrimary: parentById.get(edge.to) === edge.from,
   }))
+
+  return {
+    roots: treeRoots,
+    links: treeLinks.filter((link) => link.isPrimary),
+    dependencyLinks: treeLinks.filter((link) => !link.isPrimary),
+  }
+}
+
+function layoutTreeForest(roots) {
+  const treeLayout = d3
+    .tree()
+    .nodeSize([78, 210])
+    .separation((left, right) =>
+      left.parent === right.parent ? 1 : 1.28,
+    )
+  let verticalOffset = 0
+
+  roots.forEach((treeRoot) => {
+    const hierarchy = treeLayout(d3.hierarchy(treeRoot, (item) => item.children))
+    const items = hierarchy.descendants()
+    const minX = d3.min(items, (item) => item.x)
+    const maxX = d3.max(items, (item) => item.x)
+
+    items.forEach((item) => {
+      item.data.node.x = item.y + 80
+      item.data.node.y = item.x - minX + verticalOffset + 72
+      item.data.node.depth = item.depth
+    })
+
+    verticalOffset += maxX - minX + 96
+  })
+}
+
+function treeLinkPath(link) {
+  const sourceX = link.source.x + link.source.radius + 4
+  const sourceY = link.source.y
+  const targetX = link.target.x - link.target.radius - 8
+  const targetY = link.target.y
+  const middleX = (sourceX + targetX) / 2
+
+  return (
+    `M${sourceX},${sourceY}` +
+    `C${middleX},${sourceY} ${middleX},${targetY} ` +
+    `${targetX},${targetY}`
+  )
 }
 
 async function loadGraph() {
@@ -288,17 +397,10 @@ function updateGraphSize() {
 
   if (!svgSelection) return
   svgSelection.attr('viewBox', [0, 0, graphWidth, graphHeight])
-  simulation
-    ?.force('center', d3.forceCenter(graphWidth / 2, graphHeight / 2))
-    .force('x', d3.forceX(graphWidth / 2).strength(0.035))
-    .force('y', d3.forceY(graphHeight / 2).strength(0.035))
-    .alpha(0.35)
-    .restart()
   scheduleFitGraph(80)
 }
 
 function renderGraph() {
-  simulation?.stop()
   const svgElement = svgRef.value
   const container = graphContainer.value
   if (!svgElement || !container) return
@@ -313,12 +415,14 @@ function renderGraph() {
   if (!filteredNodes.value.length) {
     nodeSelection = null
     linkSelection = null
+    dependencyLinkSelection = null
     viewportSelection = null
     return
   }
 
   const nodes = buildNodeData(filteredNodes.value)
-  const links = buildLinkData(filteredEdges.value)
+  const treeData = buildTreeData(nodes, filteredEdges.value)
+  layoutTreeForest(treeData.roots)
 
   const defs = svgSelection.append('defs')
   defs
@@ -348,15 +452,31 @@ function renderGraph() {
 
   viewportSelection = svgSelection.append('g')
 
+  dependencyLinkSelection = viewportSelection
+    .append('g')
+    .selectAll('path')
+    .data(treeData.dependencyLinks)
+    .join('path')
+    .attr('class', 'kg-link kg-dependency-link')
+    .attr('d', treeLinkPath)
+    .attr('fill', 'none')
+    .attr('stroke', 'currentColor')
+    .attr('stroke-width', 1)
+    .attr('stroke-dasharray', '5 5')
+    .attr('stroke-opacity', 0.32)
+    .attr('marker-end', 'url(#knowledge-arrow)')
+
   linkSelection = viewportSelection
     .append('g')
-    .selectAll('line')
-    .data(links)
-    .join('line')
-    .attr('class', 'kg-link')
+    .selectAll('path')
+    .data(treeData.links)
+    .join('path')
+    .attr('class', 'kg-link kg-tree-link')
+    .attr('d', treeLinkPath)
+    .attr('fill', 'none')
     .attr('stroke', 'currentColor')
-    .attr('stroke-width', 1.2)
-    .attr('stroke-opacity', 0.42)
+    .attr('stroke-width', 1.4)
+    .attr('stroke-opacity', 0.48)
     .attr('marker-end', 'url(#knowledge-arrow)')
 
   nodeSelection = viewportSelection
@@ -414,59 +534,21 @@ function renderGraph() {
     .attr('stroke-linejoin', 'round')
     .text((node) => node.name)
 
-  simulation = d3
-    .forceSimulation(nodes)
-    .force(
-      'link',
-      d3
-        .forceLink(links)
-        .id((node) => node.id)
-        .distance((link) => 120 + link.target.difficulty * 8)
-        .strength(0.42),
-    )
-    .force('charge', d3.forceManyBody().strength(-460))
-    .force('center', d3.forceCenter(graphWidth / 2, graphHeight / 2))
-    .force('x', d3.forceX(graphWidth / 2).strength(0.035))
-    .force('y', d3.forceY(graphHeight / 2).strength(0.035))
-    .force(
-      'collision',
-      d3
-        .forceCollide()
-        .radius((node) =>
-          Math.max(node.radius + 18, node.name.length * 5.2),
-        ),
-    )
-    .on('tick', ticked)
-
   svgSelection.on('click', () => {
     selectedNodeId.value = ''
     selectedDetail.value = null
   })
   updateNodeAppearance()
-
-  // 先离线收敛再适配画布，保证整张图谱初始完整可见。
-  simulation.stop()
-  simulation.tick(220)
-  ticked()
+  positionGraph()
   scheduleFitGraph(0)
 }
 
-function ticked() {
+function positionGraph() {
   linkSelection
-    ?.attr('x1', (link) => link.source.x)
-    .attr('y1', (link) => link.source.y)
-    .attr('x2', (link) => {
-      const dx = link.target.x - link.source.x
-      const dy = link.target.y - link.source.y
-      const distance = Math.hypot(dx, dy) || 1
-      return link.target.x - (dx / distance) * (link.target.radius + 7)
-    })
-    .attr('y2', (link) => {
-      const dx = link.target.x - link.source.x
-      const dy = link.target.y - link.source.y
-      const distance = Math.hypot(dx, dy) || 1
-      return link.target.y - (dy / distance) * (link.target.radius + 7)
-    })
+    ?.attr('d', treeLinkPath)
+
+  dependencyLinkSelection
+    ?.attr('d', treeLinkPath)
 
   nodeSelection?.attr(
     'transform',
@@ -476,23 +558,18 @@ function ticked() {
 
 function dragStarted(event, node) {
   node.wasDragged = false
-  if (!event.active) simulation?.alphaTarget(0.25).restart()
-  node.fx = node.x
-  node.fy = node.y
 }
 
 function dragged(event, node) {
   if (Math.abs(event.dx) + Math.abs(event.dy) > 1) {
     node.wasDragged = true
   }
-  node.fx = event.x
-  node.fy = event.y
+  node.x = event.x
+  node.y = event.y
+  positionGraph()
 }
 
 function dragEnded(event, node) {
-  if (!event.active) simulation?.alphaTarget(0)
-  node.fx = null
-  node.fy = null
   window.setTimeout(() => {
     node.wasDragged = false
   }, 120)
@@ -851,7 +928,6 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  simulation?.stop()
   resizeObserver?.disconnect()
   svgSelection?.on('.zoom', null)
   window.clearTimeout(fitTimer)
@@ -1182,7 +1258,7 @@ onBeforeUnmount(() => {
 }
 
 .graph-workspace.has-detail {
-  grid-template-columns: minmax(0, 7fr) minmax(310px, 3fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .graph-canvas {
@@ -1205,6 +1281,10 @@ onBeforeUnmount(() => {
 
 .graph-canvas :deep(.kg-link) {
   color: var(--app-muted);
+}
+
+.graph-canvas :deep(.kg-dependency-link) {
+  color: var(--app-border-strong);
 }
 
 .graph-canvas :deep(.kg-node:hover .kg-node-circle) {
